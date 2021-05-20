@@ -59,16 +59,71 @@ def find_gateway(ip, interface):
 
     return None
 
-def update_metric(ip, interface, gateway, metric):
-    print("Remove route for {}".format(interface))
-    import subprocess
-    print("Add route for {}".format(interface))
-    print(ip.route('add', dst='0.0.0.0/0', oif=link, gateway=gateway, priority=metric))
+def iptables_block_all(interface):
+    print_date("Blocking all packets via iptables to interface {}".format(interface))
+    import iptc
+
+    # Add a DROP rule in the INPUT chain for the given interface
+    filter_table = iptc.Table(iptc.Table.FILTER)
+    input_chain = iptc.Chain(filter_table, 'INPUT')
+    add_drop_input = True
+    for rule in input_chain.rules:
+        if rule.in_interface == interface and rule.target.name == 'DROP':
+            # Rule already exists, don't add another one
+            add_drop_input = False
+            break
+
+    if add_drop_input:
+        rule = iptc.Rule()
+        rule.in_interface = interface
+        rule.target = iptc.Target(rule, 'DROP')
+
+        input_chain.insert_rule(rule)
+
+    # Add a DROP rule in the OUTPUT chain for the given interface
+    output_chain = iptc.Chain(filter_table, 'OUTPUT')
+    add_drop_output = True
+    for rule in output_chain.rules:
+        if rule.out_interface == interface and rule.target.name == 'DROP':
+            # Rule already exists, don't add another one
+            add_drop_output = False
+            break
+
+    if add_drop_output:
+        rule = iptc.Rule()
+        rule.out_interface = interface
+        rule.target = iptc.Target(rule, 'DROP')
+
+        output_chain.insert_rule(rule)
+
+
+def iptables_unblock_all(interface):
+    print_date("Unblocking all packets via iptables to interface {}".format(interface))
+    import iptc
+
+    # Add a DROP rule in the INPUT chain for the given interface
+    filter_table = iptc.Table(iptc.Table.FILTER)
+    input_chain = iptc.Chain(filter_table, 'INPUT')
+    add_drop_input = True
+    for rule in input_chain.rules:
+        if rule.in_interface == interface and rule.target.name == 'DROP':
+            # Rule already exists, don't add another one
+            input_chain.delete_rule(rule)
+            break
+
+    # Add a DROP rule in the OUTPUT chain for the given interface
+    output_chain = iptc.Chain(filter_table, 'OUTPUT')
+    add_drop_output = True
+    for rule in output_chain.rules:
+        if rule.out_interface == interface and rule.target.name == 'DROP':
+            # Rule already exists, don't add another one
+            output_chain.delete_rule(rule)
+            break
 
 def change_network(old, new, block):
     from pyroute2 import IPRoute
     print_date("Changing interface from {} to {}".format(old, new))
-    
+
     with IPRoute() as ip:
         gateway_old = find_gateway(ip, old)
         gateway_new = find_gateway(ip, new)
@@ -82,7 +137,7 @@ def change_network(old, new, block):
 
         old_link = ip.link_lookup(ifname=old)[0]
         new_link = ip.link_lookup(ifname=new)[0]
-    
+
         # Remove old default routes. The routes must be removed before the new metric can be used,
         # otherwise netlink will respond with an error
         ip.route('del', dst='0.0.0.0/0', oif=old_link, gateway=gateway_old)
@@ -90,6 +145,14 @@ def change_network(old, new, block):
         # Add new default routes where the new interface has a lower metric
         ip.route('add', dst='0.0.0.0/0', oif=old_link, gateway=gateway_old, priority=200)
         ip.route('add', dst='0.0.0.0/0', oif=new_link, gateway=gateway_new, priority=50)
+
+    if block:
+        iptables_block_all(old)
+    else:
+        iptables_unblock_all(new)
+
+    import subprocess
+    subprocess.call(['systemctl', 'restart', 'openvpn@hs'])
                
 
 def run(config):
@@ -121,11 +184,13 @@ def run(config):
                     change_network(config.backup_interface, config.preferred_interface, block=True)
             else:
                 good_count = 0
-        
-        
+
+
 def test():
     # change_network('enx00e04c680b8d', 'wlp0s20f3', block=False)
-    change_network('wlp0s20f3', 'enx00e04c680b8d', block=False)
+    change_network('wlp0s20f3', 'enx00e04c680b8d', block=True)
+    # iptables_block_all('wlp0s20f3')
+    # iptables_unblock_all('wlp0s20f3')
 
 def main():
     config = read_config()

@@ -9,7 +9,7 @@ The design is:
   send a ping to some host, such as 8.8.8.8, once a second via the preferred network interface (ethernet). If the ping doesn't come back then switch the default interface to wifi. Pings will still be sent via ethernet, and when X successful pings come back then switch the default interface back to ethernet, where X is something like 3 or 4.
   switching interfaces consists of
   * setting the default metric of the new interface to something low, like 50, and the other one to something higher, like 100.
-  * ifconfig down and then up on the old default interface to force all existing network connections to break.
+  * use iptables to block packets from egressing out of the non-preferred interface, to force existing connections to end. connections that continue to use the preferred interface are fine.
 
 Changing the default interface and sending ping's needs root access, so this program will have to be run as root for the time being.
 

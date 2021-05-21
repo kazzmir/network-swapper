@@ -29,6 +29,7 @@ PingBad = 'bad'
 def send_ping(server, interface):
     """Sends a ping on the given interface using the 'ping' tool, returns true if successful otherwise fales"""
     # Send ICMP ping to server via the given interface
+    # FIXME: figure out how to do this from pure python. It seems a raw socket can't be bound to an interface/ip?
     ping = subprocess.run(['ping', '-I', interface, '-w', '1', '-c', '1', server], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return ping.returncode == 0
 
@@ -191,6 +192,8 @@ def change_network(old, new, block):
     else:
         iptables_unblock_all(new)
 
+    # Restart things that depend on the network being up.
+    # It would also be nice to restart my music mplayer that is streaming from the internet
     subprocess.call(['systemctl', 'restart', 'openvpn@hs'])
                
 

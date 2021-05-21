@@ -54,6 +54,7 @@ def icmp_pinger2(server, interface, status_queue, stop):
 
 def icmp_pinger(server, interface, status_queue, stop):
     try:
+        print_date("Pinger running on interface {} to {}".format(interface, server))
         while not stop.wait(1):
             ping = send_ping(server, interface)
             # print_date("Ping: {}".format(ping))
@@ -162,6 +163,7 @@ def change_network(old, new, block):
 
         if gateway_new is None:
             print_date("Error: could not get gateway for new interface: {}".format(new))
+            return
 
         old_link = ip.link_lookup(ifname=old)[0]
         new_link = ip.link_lookup(ifname=new)[0]
@@ -217,6 +219,9 @@ def run(config):
     state = StatePreferred
     good_count = 0
 
+    # Start in the state where the preferred interface is the default route
+    change_network(config.backup_interface, config.preferred_interface, block=True)
+
     while not global_stop.is_set():
         data = icmp_ping_status.get()
         if state == StatePreferred:
@@ -229,8 +234,9 @@ def run(config):
         elif state == StateBackup:
             if data == PingGood:
                 good_count += 1
-                if good_count > 3:
+                if good_count >= 3:
                     change_network(config.backup_interface, config.preferred_interface, block=True)
+                    state = StatePreferred
             else:
                 good_count = 0
 
@@ -257,7 +263,17 @@ def test():
     # iptables_block_all('wlp0s20f3')
     # iptables_unblock_all('wlp0s20f3')
 
+def is_root():
+    import os
+    return os.geteuid() == 0
+
 def main():
+    print_date("Network swapper")
+
+    if not is_root():
+        print_date("Error: must run as root")
+        return
+
     config = read_config()
 
     run(config)

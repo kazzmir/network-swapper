@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import queue
+import threading
+import subprocess
 
 class Config(object):
     def __init__(self):
@@ -25,18 +27,47 @@ PingGood = 'good'
 PingBad = 'bad'
 
 def send_ping(server, interface):
+    """Sends a ping on the given interface using the 'ping' tool, returns true if successful otherwise fales"""
     # Send ICMP ping to server via the given interface
-    pass
+    with open('/dev/null', 'w') as null:
+        ping = subprocess.run(['ping', '-I', interface, '-w', 1, server], stdout=null, stderr=null)
+        return ping.returncode == 0
 
-def ethernet_pinger(server, interface, status_queue, stop):
-    print_date("Running ping thread")
-    while not stop.wait(1):
-        if send_ping(server, interface):
-            status_queue.put(PingGood)
-        else:
-            status_queue.put(PingBad)
+def icmp_pinger2(server, interface, status_queue, stop):
+    try:
+        import pythonping
+        print_date("Running ping thread")
+
+        pinger = pythonping.executor.Communicator(server, None, 1, source='192.168.1.149')
+
+        while not stop.wait(1):
+            response = pinger.ping()
+            print(response)
+
+            #if send_ping(server, interface):
+            #    status_queue.put(PingGood)
+            #else:
+            #    status_queue.put(PingBad)
+    except Exception as fail:
+        import traceback
+        traceback.print_exc()
+        print("Pinger failed: {}".format(fail))
+
+def icmp_pinger(server, interface, status_queue, stop):
+    try:
+        while not stop.wait(1):
+            ping = send_ping(server, interface)
+            if ping:
+                status_queue.put(PingGood)
+            else:
+                status_queue.put(PingBad)
+    except Exception as fail:
+        import traceback
+        traceback.print_exc()
+        print("Pinger failed: {}".format(fail))
 
 def find_gateway(ip, interface):
+    """Find the gateway ip for the default route of the given interface"""
     link = ip.link_lookup(ifname=interface)[0]
     routes = ip.route('dump')
     for route in routes:
@@ -104,25 +135,22 @@ def iptables_unblock_all(interface):
     # Add a DROP rule in the INPUT chain for the given interface
     filter_table = iptc.Table(iptc.Table.FILTER)
     input_chain = iptc.Chain(filter_table, 'INPUT')
-    add_drop_input = True
     for rule in input_chain.rules:
         if rule.in_interface == interface and rule.target.name == 'DROP':
-            # Rule already exists, don't add another one
             input_chain.delete_rule(rule)
-            break
 
     # Add a DROP rule in the OUTPUT chain for the given interface
     output_chain = iptc.Chain(filter_table, 'OUTPUT')
-    add_drop_output = True
     for rule in output_chain.rules:
         if rule.out_interface == interface and rule.target.name == 'DROP':
-            # Rule already exists, don't add another one
             output_chain.delete_rule(rule)
-            break
 
 def change_network(old, new, block):
+    """Switch the network from old to new, possibly setting up iptables rules to block
+       the old interface
+    """
     from pyroute2 import IPRoute
-    print_date("Changing interface from {} to {}".format(old, new))
+    print_date("Changing default interface from {} to {}".format(old, new))
 
     with IPRoute() as ip:
         gateway_old = find_gateway(ip, old)
@@ -140,8 +168,18 @@ def change_network(old, new, block):
 
         # Remove old default routes. The routes must be removed before the new metric can be used,
         # otherwise netlink will respond with an error
-        ip.route('del', dst='0.0.0.0/0', oif=old_link, gateway=gateway_old)
-        ip.route('del', dst='0.0.0.0/0', oif=new_link, gateway=gateway_new)
+        try:
+            while True:
+                ip.route('del', dst='0.0.0.0/0', oif=old_link, gateway=gateway_old)
+        except Exception:
+            pass
+
+        try:
+            while True:
+                ip.route('del', dst='0.0.0.0/0', oif=new_link, gateway=gateway_new)
+        except Exception:
+            pass
+
         # Add new default routes where the new interface has a lower metric
         ip.route('add', dst='0.0.0.0/0', oif=old_link, gateway=gateway_old, priority=200)
         ip.route('add', dst='0.0.0.0/0', oif=new_link, gateway=gateway_new, priority=50)
@@ -151,15 +189,25 @@ def change_network(old, new, block):
     else:
         iptables_unblock_all(new)
 
-    import subprocess
     subprocess.call(['systemctl', 'restart', 'openvpn@hs'])
                
 
 def run(config):
     global_stop = threading.Event()
-    ethernet_ping_status = queue.Queue()
+    icmp_ping_status = queue.Queue()
 
-    pinger = threading.Thread(target=ethernet_pinger, args=(config.ping_host, config.preferred_interface, ethernet_ping_status, global_stop))
+    import signal
+
+    def stop(signum, frame):
+        print("Quitting..")
+        global_stop.set()
+        # Ensure the loop gets something and then quits
+        icmp_ping_status.put(PingGood)
+
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
+
+    pinger = threading.Thread(target=icmp_pinger, args=(config.ping_host, config.preferred_interface, icmp_ping_status, global_stop))
     pinger.daemon = True
     pinger.start()
 
@@ -170,9 +218,10 @@ def run(config):
     good_count = 0
 
     while not global_stop.is_set():
-        data = ethernet_ping_status.get()
+        data = icmp_ping_status.get()
         if state == StatePreferred:
             if data == PingBad:
+                print_date("Ping failure on {}".format(config.preferred_interface))
                 state = StateBackup
                 change_network(config.preferred_interface, config.backup_interface, block=False)
                 good_count = 0
@@ -185,6 +234,22 @@ def run(config):
             else:
                 good_count = 0
 
+def test_ping():
+    global_stop = threading.Event()
+
+    import signal
+
+    def stop(signum, frame):
+        print("Quitting..")
+        global_stop.set()
+
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
+
+    data = queue.Queue()
+
+    icmp_pinger('8.8.8.8', 'enx00e04c680b8d', data, global_stop)
+    # icmp_pinger('127.0.0.1', 'enx00e04c680b8d', data, global_stop)
 
 def test():
     # change_network('enx00e04c680b8d', 'wlp0s20f3', block=False)
@@ -198,4 +263,5 @@ def main():
     run(config)
 
 test()
+# test_ping()
 # main()

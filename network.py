@@ -29,9 +29,8 @@ PingBad = 'bad'
 def send_ping(server, interface):
     """Sends a ping on the given interface using the 'ping' tool, returns true if successful otherwise fales"""
     # Send ICMP ping to server via the given interface
-    with open('/dev/null', 'w') as null:
-        ping = subprocess.run(['ping', '-I', interface, '-w', 1, server], stdout=null, stderr=null)
-        return ping.returncode == 0
+    ping = subprocess.run(['ping', '-I', interface, '-w', '1', '-c', '1', server], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return ping.returncode == 0
 
 def icmp_pinger2(server, interface, status_queue, stop):
     try:
@@ -57,6 +56,7 @@ def icmp_pinger(server, interface, status_queue, stop):
     try:
         while not stop.wait(1):
             ping = send_ping(server, interface)
+            # print_date("Ping: {}".format(ping))
             if ping:
                 status_queue.put(PingGood)
             else:
@@ -262,6 +262,6 @@ def main():
 
     run(config)
 
-test()
+# test()
 # test_ping()
-# main()
+main()

@@ -14,4 +14,6 @@ The design is:
 Changing the default interface and sending ping's needs root access, so this program will have to be run as root for the time being.
 
 Setup:
+```
 $ sudo pip install -r requirements.txt
+```

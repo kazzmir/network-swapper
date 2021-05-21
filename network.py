@@ -221,6 +221,9 @@ def run(config):
     
     state = StatePreferred
     good_count = 0
+    bad_count = 0
+
+    bad_max = 2
 
     # Start in the state where the preferred interface is the default route
     change_network(config.backup_interface, config.preferred_interface, block=True)
@@ -229,17 +232,22 @@ def run(config):
         data = icmp_ping_status.get()
         if state == StatePreferred:
             if data == PingBad:
-                print_date("Ping failure on {}".format(config.preferred_interface))
-                state = StateBackup
-                change_network(config.preferred_interface, config.backup_interface, block=False)
-                good_count = 0
-            # otherwise its PingGood so we stay on the preferred network
+                bad_count += 1
+                print_date("Ping failure on {} ({}/{})".format(config.preferred_interface, bad_count, bad_max))
+                if bad_count >= bad_max:
+                    state = StateBackup
+                    change_network(config.preferred_interface, config.backup_interface, block=False)
+                    good_count = 0
+            else:
+                # otherwise its PingGood so we stay on the preferred network
+                bad_count = 0
         elif state == StateBackup:
             if data == PingGood:
                 good_count += 1
                 if good_count >= 3:
                     change_network(config.backup_interface, config.preferred_interface, block=True)
                     state = StatePreferred
+                    bad_count = 0
             else:
                 good_count = 0
 

@@ -17,3 +17,25 @@ Setup:
 ```
 $ sudo pip install -r requirements.txt
 ```
+
+Example of operation:
+```
+2021-05-22 23:10:57.806765: Network swapper
+2021-05-22 23:10:57.806973: Pinger running on interface enx00e04c680b8d to 8.8.8.8
+2021-05-22 23:10:57.907772: Changing default interface from enx00a0c6000000 to enx00e04c680b8d
+2021-05-22 23:10:57.914431: Blocking all packets via iptables to interface enx00a0c6000000
+2021-05-22 23:26:23.640483: Ping failure on enx00e04c680b8d (1/2)
+2021-05-22 23:26:25.647860: Ping failure on enx00e04c680b8d (2/2)
+2021-05-22 23:26:25.648059: Changing default interface from enx00e04c680b8d to enx00a0c6000000
+2021-05-22 23:26:25.660135: Unblocking all packets via iptables to interface enx00a0c6000000
+2021-05-22 23:26:58.757813: Changing default interface from enx00a0c6000000 to enx00e04c680b8d
+2021-05-22 23:26:58.787192: Blocking all packets via iptables to interface enx00a0c6000000
+2021-05-23 00:13:32.810662: Ping failure on enx00e04c680b8d (1/2)
+2021-05-23 11:41:23.994766: Ping failure on enx00e04c680b8d (1/2)
+2021-05-23 11:41:26.068302: Ping failure on enx00e04c680b8d (2/2)
+2021-05-23 11:41:26.068362: Changing default interface from enx00e04c680b8d to enx00a0c6000000
+2021-05-23 11:41:26.074659: Unblocking all packets via iptables to interface enx00a0c6000000
+2021-05-23 11:41:29.124702: Changing default interface from enx00a0c6000000 to enx00e04c680b8d
+2021-05-23 11:41:29.142150: Blocking all packets via iptables to interface enx00a0c6000000
+```
+After 2 bad pings this script switches the default route from the preferred interface enx00e04c680b8d to the backup interface enx00a0c6000000. Once a few good pings are sent out of enx00e04c680b8d then the default route switches back.

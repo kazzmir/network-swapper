@@ -39,3 +39,6 @@ Example of operation:
 2021-05-23 11:41:29.142150: Blocking all packets via iptables to interface enx00a0c6000000
 ```
 After 2 bad pings this script switches the default route from the preferred interface enx00e04c680b8d to the backup interface enx00a0c6000000. Once a few good pings are sent out of enx00e04c680b8d then the default route switches back.
+
+Notes:
+Ubuntu's sytemd-resolved doesn't seem to choose the appropriate DNS server in all cases in that it tries to choose one of the upstream gateways, but it doesn't know which upstream is currently active. Rather than trying to convince systemd-resolved to do the right thing I simply uninstalled it and installed dnsmasq instead.

@@ -14,7 +14,8 @@ def read_config():
     config = Config()
     # FIXME: read these out of a file
     config.preferred_interface = 'enx00e04c680b8d'
-    config.backup_interface = 'wlp0s20f3'
+    # config.backup_interface = 'wlp0s20f3'
+    config.backup_interface = 'enx00a0c6000000'
     config.ping_host = '8.8.8.8'
 
     return config
@@ -111,7 +112,7 @@ def iptables_block_all(interface):
         rule.in_interface = interface
         rule.target = iptc.Target(rule, 'DROP')
 
-        input_chain.insert_rule(rule)
+        input_chain.append_rule(rule)
 
     # Add a DROP rule in the OUTPUT chain for the given interface
     output_chain = iptc.Chain(filter_table, 'OUTPUT')
@@ -127,7 +128,7 @@ def iptables_block_all(interface):
         rule.out_interface = interface
         rule.target = iptc.Target(rule, 'DROP')
 
-        output_chain.insert_rule(rule)
+        output_chain.append_rule(rule)
 
 
 def iptables_unblock_all(interface):

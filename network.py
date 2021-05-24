@@ -148,12 +148,12 @@ def iptables_unblock_all(interface):
         if rule.out_interface == interface and rule.target.name == 'DROP':
             output_chain.delete_rule(rule)
 
-def change_network(old, new, block):
+def change_network(old, new, block, context):
     """Switch the network from old to new, possibly setting up iptables rules to block
        the old interface
     """
     from pyroute2 import IPRoute
-    print_date("Changing default interface from {} to {}".format(old, new))
+    print_date("({}) Changing default interface from {} to {}".format(context, old, new))
 
     with IPRoute() as ip:
         gateway_old = find_gateway(ip, old)
@@ -227,7 +227,7 @@ def run(config):
     bad_max = 2
 
     # Start in the state where the preferred interface is the default route
-    change_network(config.backup_interface, config.preferred_interface, block=True)
+    change_network(config.backup_interface, config.preferred_interface, block=True, context="Initial preferred state")
 
     while not global_stop.is_set():
         data = icmp_ping_status.get()
@@ -237,7 +237,7 @@ def run(config):
                 print_date("Ping failure on {} ({}/{})".format(config.preferred_interface, bad_count, bad_max))
                 if bad_count >= bad_max:
                     state = StateBackup
-                    change_network(config.preferred_interface, config.backup_interface, block=False)
+                    change_network(config.preferred_interface, config.backup_interface, block=False, context="Switch to backup")
                     good_count = 0
             else:
                 # otherwise its PingGood so we stay on the preferred network
@@ -246,7 +246,7 @@ def run(config):
             if data == PingGood:
                 good_count += 1
                 if good_count >= 3:
-                    change_network(config.backup_interface, config.preferred_interface, block=True)
+                    change_network(config.backup_interface, config.preferred_interface, block=True, context="Switch to preferred")
                     state = StatePreferred
                     bad_count = 0
             else:
@@ -270,8 +270,8 @@ def test_ping():
     # icmp_pinger('127.0.0.1', 'enx00e04c680b8d', data, global_stop)
 
 def test():
-    # change_network('enx00e04c680b8d', 'wlp0s20f3', block=False)
-    change_network('wlp0s20f3', 'enx00e04c680b8d', block=True)
+    # change_network('enx00e04c680b8d', 'wlp0s20f3', block=False, context="test")
+    change_network('wlp0s20f3', 'enx00e04c680b8d', block=True, context="test")
     # iptables_block_all('wlp0s20f3')
     # iptables_unblock_all('wlp0s20f3')
 

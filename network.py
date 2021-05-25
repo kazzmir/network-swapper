@@ -3,6 +3,7 @@
 import queue
 import threading
 import subprocess
+from pyroute2 import IPRoute
 
 class Config(object):
     def __init__(self):
@@ -27,14 +28,14 @@ def print_date(what):
 PingGood = 'good'
 PingBad = 'bad'
 
-def send_ping(server, interface):
+def send_ping(server:str, interface:str) -> bool:
     """Sends a ping on the given interface using the 'ping' tool, returns true if successful otherwise fales"""
     # Send ICMP ping to server via the given interface
     # FIXME: figure out how to do this from pure python. It seems a raw socket can't be bound to an interface/ip?
     ping = subprocess.run(['ping', '-I', interface, '-w', '1', '-c', '1', server], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return ping.returncode == 0
 
-def icmp_pinger2(server, interface, status_queue, stop):
+def icmp_pinger2(server:str, interface:str, status_queue:queue.Queue, stop:threading.Event):
     try:
         import pythonping
         print_date("Running ping thread")
@@ -54,7 +55,7 @@ def icmp_pinger2(server, interface, status_queue, stop):
         traceback.print_exc()
         print("Pinger failed: {}".format(fail))
 
-def icmp_pinger(server, interface, status_queue, stop):
+def icmp_pinger(server:str, interface:str, status_queue:queue.Queue, stop:threading.Event):
     try:
         print_date("Pinger running on interface {} to {}".format(interface, server))
         while not stop.wait(1):
@@ -69,7 +70,7 @@ def icmp_pinger(server, interface, status_queue, stop):
         traceback.print_exc()
         print("Pinger failed: {}".format(fail))
 
-def find_gateway(ip, interface):
+def find_gateway(ip:IPRoute, interface:str):
     """Find the gateway ip for the default route of the given interface"""
     link = ip.link_lookup(ifname=interface)[0]
     routes = ip.route('dump')
@@ -93,7 +94,7 @@ def find_gateway(ip, interface):
 
     return None
 
-def iptables_block_all(interface):
+def iptables_block_all(interface:str):
     print_date("Blocking all packets via iptables to interface {}".format(interface))
     import iptc
 
@@ -131,7 +132,7 @@ def iptables_block_all(interface):
         output_chain.append_rule(rule)
 
 
-def iptables_unblock_all(interface):
+def iptables_unblock_all(interface:str):
     print_date("Unblocking all packets via iptables to interface {}".format(interface))
     import iptc
 
@@ -148,11 +149,10 @@ def iptables_unblock_all(interface):
         if rule.out_interface == interface and rule.target.name == 'DROP':
             output_chain.delete_rule(rule)
 
-def change_network(old, new, block, context):
+def change_network(old:str, new:str, block:bool, context:str):
     """Switch the network from old to new, possibly setting up iptables rules to block
        the old interface
     """
-    from pyroute2 import IPRoute
     print_date("({}) Changing default interface from {} to {}".format(context, old, new))
 
     with IPRoute() as ip:
@@ -198,9 +198,9 @@ def change_network(old, new, block, context):
     subprocess.call(['systemctl', 'restart', 'openvpn@hs'])
                
 
-def run(config):
+def run(config:Config):
     global_stop = threading.Event()
-    icmp_ping_status = queue.Queue()
+    icmp_ping_status:queue.Queue = queue.Queue()
 
     import signal
 
@@ -213,18 +213,18 @@ def run(config):
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
 
-    pinger = threading.Thread(target=icmp_pinger, args=(config.ping_host, config.preferred_interface, icmp_ping_status, global_stop))
+    pinger:threading.Thread = threading.Thread(target=icmp_pinger, args=(config.ping_host, config.preferred_interface, icmp_ping_status, global_stop))
     pinger.daemon = True
     pinger.start()
 
-    StatePreferred = 0
-    StateBackup = 1
+    StatePreferred:int = 0
+    StateBackup:int = 1
     
     state = StatePreferred
-    good_count = 0
-    bad_count = 0
+    good_count:int = 0
+    bad_count:int = 0
 
-    bad_max = 2
+    bad_max:int = 2
 
     # Start in the state where the preferred interface is the default route
     change_network(config.backup_interface, config.preferred_interface, block=True, context="Initial preferred state")
@@ -275,7 +275,7 @@ def test():
     # iptables_block_all('wlp0s20f3')
     # iptables_unblock_all('wlp0s20f3')
 
-def is_root():
+def is_root() -> bool:
     import os
     return os.geteuid() == 0
 

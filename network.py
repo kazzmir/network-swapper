@@ -70,9 +70,17 @@ def icmp_pinger(server:str, interface:str, status_queue:queue.Queue, stop:thread
         traceback.print_exc()
         print("Pinger failed: {}".format(fail))
 
+def get_interface(ip:IPRoute, name:str):
+    links = ip.link_lookup(ifname=name)
+    if len(links) == 0:
+        return None
+    return links[0]
+
 def find_gateway(ip:IPRoute, interface:str):
     """Find the gateway ip for the default route of the given interface"""
-    link = ip.link_lookup(ifname=interface)[0]
+    link = get_interface(ip, interface)
+    if link is None:
+        return None
     routes = ip.route('dump')
     for route in routes:
         if 'attrs' in route:
@@ -167,8 +175,11 @@ def change_network(old:str, new:str, block:bool, context:str):
             print_date("Error: could not get gateway for new interface: {}".format(new))
             return
 
-        old_link = ip.link_lookup(ifname=old)[0]
-        new_link = ip.link_lookup(ifname=new)[0]
+        old_link = get_interface(ip, old)
+        new_link = get_interface(ip, new)
+
+        if old_link is None or new_link is None:
+            return
 
         # Remove old default routes. The routes must be removed before the new metric can be used,
         # otherwise netlink will respond with an error

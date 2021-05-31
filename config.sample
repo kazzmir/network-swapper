@@ -1,0 +1,10 @@
+# rename this file to just 'config'
+
+# Main interface that should be active
+preferred = eth0
+# Backup interface in case the main interface goes down
+backup = eth1
+# Host to check main interface with. This should be upstream of wherever
+# the issue with the main interface is. That is if issue is with the ISP
+# then this should be a routable host on the internet
+pinghost = 8.8.8.8

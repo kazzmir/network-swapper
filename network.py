@@ -12,14 +12,45 @@ class Config(object):
         self.ping_host = None
 
 def read_config():
-    config = Config()
-    # FIXME: read these out of a file
-    config.preferred_interface = 'enx00e04c680b8d'
-    # config.backup_interface = 'wlp0s20f3'
-    config.backup_interface = 'enx00a0c6000000'
-    config.ping_host = '8.8.8.8'
+    try:
+        with open("config") as data:
+            config = Config()
+            for line in data.readlines():
+                use = line.strip()
+                if use.startswith('#'):
+                    continue
 
-    return config
+                if '=' in use:
+                    parts = use.split('=')
+                    if len(parts) == 2:
+                        left = parts[0].strip()
+                        right = parts[1].strip()
+                        if left == 'preferred':
+                            config.preferred_interface = right
+                            # 'enx00e04c680b8d'
+                        elif left == 'backup':
+                            config.backup_interface = right
+                        elif left == 'pinghost':
+                            config.ping_host = right
+                    else:
+                        print("Warning: invalid config line '{}'".format(use))
+
+            if config.preferred_interface is None:
+                print("Error: no 'preferred=xyz' line in config")
+                return None
+
+            if config.backup_interface is None:
+                print("Error: no 'backup=xyz' line in config")
+                return None
+
+            if config.ping_host is None:
+                print("Error: no 'pinghost' line in config")
+                return None
+
+            return config
+    except Exception as fail:
+        print("Error reading config: {}".format(fail))
+        return None
 
 def print_date(what):
     import datetime
@@ -213,6 +244,10 @@ def run(config:Config):
     global_stop = threading.Event()
     icmp_ping_status:queue.Queue = queue.Queue()
 
+    print("Preferred interface: {}".format(config.preferred_interface))
+    print("Backup interface: {}".format(config.backup_interface))
+    print("Ping host: {}".format(config.ping_host))
+
     import signal
 
     def stop(signum, frame):
@@ -298,8 +333,8 @@ def main():
         return
 
     config = read_config()
-
-    run(config)
+    if config is not None:
+        run(config)
 
 # test()
 # test_ping()

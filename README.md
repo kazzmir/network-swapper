@@ -42,3 +42,5 @@ After 2 bad pings this script switches the default route from the preferred inte
 
 Notes:
 Ubuntu's sytemd-resolved doesn't seem to choose the appropriate DNS server in all cases in that it tries to choose one of the upstream gateways, but it doesn't know which upstream is currently active. Rather than trying to convince systemd-resolved to do the right thing I simply uninstalled it and installed dnsmasq instead.
+
+ipv4 vs ipv6: my main interface only has an ipv4 ip, but my backup interface gets both ipv4 and ipv6. Simply switching the default route to the main interface is not enough to prevent existing ipv4/ipv6 connections from going through the backup interface, so additionally iptables is used to block all traffic on the backup interface. Additionally, if a DNS lookup returns an ipv6 ip then the backup interface will be used to send the traffic. Rather than try to prevent all ipv6 situations from occurring I found it simplest to just delete the ipv6 ip's from the backup interface so that only ipv4 remains. If the main interface has an ipv6 interface then this probably is not an issue.

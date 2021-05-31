@@ -3,6 +3,7 @@
 import queue
 import threading
 import subprocess
+from typing import Optional
 from pyroute2 import IPRoute
 
 class Config(object):
@@ -11,7 +12,7 @@ class Config(object):
         self.backup_interface = None
         self.ping_host = None
 
-def read_config():
+def read_config() -> Optional[Config]:
     try:
         with open("config") as data:
             config = Config()

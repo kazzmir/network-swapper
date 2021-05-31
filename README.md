@@ -1,7 +1,7 @@
 Network Swapper
 ---------------
 
-This program swaps the default route between different interfaces depending on certain conditions, namely the current default interface stops working then this program will swap to another interface.
+This program swaps the default route between different interfaces depending on certain conditions, namely if the current default interface stops working due to an upstream ISP issue then this program will swap to another interface.
 
 My use case is that I have two network interfaces: ethernet attached to a cable modem, and tether/wifi via my phone (or sometimes my LTE modem). Ethernet is my preferred mode of network access as it is fast, high bandwidth, and has almost unlimited data caps. Unfortunately the cable network is unreliable somehow, which causes all packets sent out through the cable modem to get dropped or something. In these cases I switch to tether/wifi, which is reliable but is not as fast and has much more limited amount of maximum data I can send in a given time period.
 
